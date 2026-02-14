@@ -1,0 +1,15 @@
+AskMultiServer: 1
+AskFirstInfo: 13
+LoginReq: 3
+NewUserConfirmId: 4
+NewUser: 5
+ReqConnectToSvr: 6
+OnConnEstablished: 7
+CrashInfo: 8
+EnterChannelStageReq: 9
+UnkReq: 12
+EstimateRTT: 20
+UserSimpleInfoReq: 64
+CreatePracticeSessionReq: 86
+SelectColorReq: 98
+StartGameReq: 105
