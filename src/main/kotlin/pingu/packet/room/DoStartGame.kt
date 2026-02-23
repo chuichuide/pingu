@@ -1,12 +1,13 @@
-package pingu.packet
+package pingu.packet.room
 
 import pingu.netty.PKT
 import pingu.tickCount
 
 // server = CGameSession::DoStartGame
-fun DoStartGame() = PKT {
+// client = CGameStage::OnStartGame
+fun DoStartGame(random: Int) = PKT {
     Encode4(tickCount)
-    Encode4(1175)
+    Encode4(random)
     Encode4()
     Encode4()
 }

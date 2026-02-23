@@ -7,8 +7,15 @@ ReqConnectToSvr: 6
 OnConnEstablished: 7
 CrashInfo: 8
 EnterChannelStageReq: 9
+UnkReq: 12
+ChannelsGameStateReq: 13
 EstimateRTT: 20
 UserSimpleInfoReq: 64
+CreateSessionReq: 80
 CreatePracticeSessionReq: 86
+SelectMapReq: 97
 SelectColorReq: 98
-StartGameReq: 106
+StartGameReq: 105
+BombIgniteReq: 140
+MovableBoxMoveReq: 143
+EatItemReq: 144

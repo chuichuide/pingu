@@ -1,4 +1,4 @@
-package pingu.packet
+package pingu.packet.room
 
 import pingu.netty.PKT
 

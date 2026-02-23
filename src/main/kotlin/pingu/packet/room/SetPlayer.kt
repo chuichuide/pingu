@@ -1,26 +1,39 @@
-package pingu.packet
+package pingu.packet.room
 
+import pingu.isJP
 import pingu.netty.PKT
+import pingu.server.Encode
+import pingu.server.Slot
+import pingu.server.User
 
 // server = MakeSetPlayerPacket
 // clinet = TW_5 = 4B0020
-val enterEffect =  true
-fun SetPlayer(slotId: Int) = PKT {
+val bEnterEffect =  true
+fun SetPlayer(slotId: Int, slot: Slot, user: User) = PKT {
     Encode1(slotId)
-    Encode4() // userId
-    Encode1Bool(enterEffect)
+    Encode4(user.id) // userId
+    Encode1Bool(bEnterEffect)
     Encode1()
-    if (enterEffect) {
-        Encode1(5)
+    if (bEnterEffect) {
+        Encode1(6) // enterEffectId
     }
-    EncodeBuffer("02 06 00") // state | 人物 | 隊伍顏色
+
+    slot.Encode(this)
 
     // CUser::AppendSimpleInfoPacket
-    EncodeStr("chui") // name
+    EncodeStr(user.name) // name
     Encode1()
-    Encode2(5) // level
+    if (isJP) {
+        Encode1()
+        Encode2()
+    }
+    Encode2(user.level) // level
+    if (isJP) {
+        Encode4()
+        EncodeStr()
+    }
     Encode4()
-    Encode4()
+    Encode4(user.level) // 這個不是1的話日版會沒地圖選
     Encode2() // guildMark
 
     // CBaseSession::MakeSlotAccessoryPacket

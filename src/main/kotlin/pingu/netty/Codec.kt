@@ -2,121 +2,224 @@ package pingu.netty
 
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
-import io.netty.handler.codec.ByteToMessageCodec
-import pingu.CRC32
-import pingu.CRC8
-import pingu.debugMode
+import io.netty.handler.codec.ByteToMessageDecoder
+import io.netty.handler.codec.MessageToByteEncoder
+import pingu.*
 
-val ByteBuf.m_nCipherDegree
-    get() = 1 // ReceivedPacketBase可以省略狀態 所以放這
+// ReceivedPacketBase可以省略CipherDegree狀態 所以可以直接用這個
+inline val m_nCipherDegreeInit get() = if (isTH || isVN || isNA) 3 else 1
+
+val headerLen = when (m_nCipherDegreeInit) {
+    3 -> 4
+    else -> 3
+}
+val payloadLenIdx = when (m_nCipherDegreeInit) {
+    3 -> 2
+    else -> 1
+}
+val opcodeLen = when (m_nCipherDegreeInit) {
+    3 -> 2
+    else -> 1
+}
+val crcLen = when (m_nCipherDegreeInit) {
+    1 -> 4
+    2, 3 -> 1
+    else -> 0
+}
+
+val minimumLen = headerLen + opcodeLen + crcLen
 
 // CPacketSocket::SetHeaderType
-val m_nHeaderType = 0
+const val m_nHeaderType = 0
 
 // CPacketSocket::SetHeaderCode
-val m_nHeaderCodeRcvBase = 192
-val m_nHeaderCodeSndBase = 102
-val m_nHeaderCodeModifier = 231
+const val m_nHeaderCodeRcvBase = 192
+const val m_nHeaderCodeSndBase = 102
+const val m_nHeaderCodeModifier = 231
 
 // CPacketSocket::SetSequence
-val m_nPacketRcvSeqDelta = 3
-val m_nPacketSndSeqDelta = 3
+const val m_nPacketRcvSeqDelta = 3
+const val m_nPacketSndSeqDelta = 3
 
-class Codec : ByteToMessageCodec<PKT>() {
-    var m_nCipherDegree = 0 // 給SendPacketBase用的
+class Decoder : ByteToMessageDecoder() {
     var m_nPacketRcvSeq = 40
-    var m_nPacketSndSeq = 40
-
-    val reusableWriter = SendPacketBase()
-
-    // CSendPacketBase::EncodePacket
-    override fun encode(ctx: ChannelHandlerContext, pkt: PKT, out: ByteBuf) {
-        // 重複使用SendPacketBase 減少GC負擔
-        reusableWriter.reset(out, m_nCipherDegree)
-
-        val headerCode = (m_nHeaderType + m_nHeaderCodeModifier) xor (m_nHeaderCodeSndBase + m_nPacketSndSeq)
-        out.writeByte(headerCode)
-
-        val headerIdx = out.writerIndex()
-        out.writeShort(0) // 長度佔位符
-
-        val bodyStartIdx = out.writerIndex()
-        val opcode = OpcodeManager.getSendOp(pkt.javaClass) // m_nPacketType
-
-        reusableWriter.Encode1(opcode)
-        pkt.encode(reusableWriter)
-
-        val payloadLen = out.writerIndex() - bodyStartIdx
-
-        if (debugMode) {
-            println(
-                "[" + "${
-                    pkt.javaClass.name.substringAfter('$').substringBefore('$')
-                }] " + "$opcode | 0x${opcode.toString(16).uppercase()} | Send"
-            )
-        }
-
-        // (Zero-Copy Slice)
-        val payload = out.slice(bodyStartIdx, payloadLen)
-
-        if (m_nCipherDegree in 1..2) {
-            out.setShort(headerIdx, payloadLen xor 0xA569) // 回填長度
-
-            // 根據明文產生CRC
-            when (m_nCipherDegree) {
-                1 -> out.writeInt(CRC32.UpdateCRC(dwCrcKey = m_nPacketSndSeq, payload, Size = payload.writerIndex()))
-
-                2 -> out.writeByte(CRC8.UpdateCRC(dwCrcKey = m_nPacketSndSeq, payload, Size = payload.writerIndex()))
-            }
-
-            payload.simpleStreamEncrypt3(m_nPacketSndSeq) // 加密
-        } else { // 握手
-            out.setShort(headerIdx, payloadLen) // 回填長度
-            m_nCipherDegree = out.m_nCipherDegree
-        }
-
-        m_nPacketSndSeq += m_nPacketSndSeqDelta
-    }
 
     // CReceivedPacketBase::DecodePacket
-    override fun decode(ctx: ChannelHandlerContext, buf: ReceivedPacketBase, out: MutableList<Any>) {
-        while (buf.readableBytes() >= 4) {
-            val serverHeaderCode = (m_nHeaderType + m_nHeaderCodeModifier) xor (m_nHeaderCodeRcvBase + m_nPacketRcvSeq)
+    override fun decode(ctx: ChannelHandlerContext, buf: ByteBuf, out: MutableList<Any>) {
+        while (buf.readableBytes() >= minimumLen) {
+            val readerIdx = buf.readerIndex()
 
-            val clientHeaderCode = buf.readByte()
-            val payloadLen = buf.Decode2
+            // 使用get可以省略當進來的長度不夠時需要resetReaderIndex的步驟等
 
-            if (serverHeaderCode.toByte() != clientHeaderCode || buf.readableBytes() < payloadLen) {
-                println("HeaderCode不正確或decode可讀長度不足 關閉連接")
+            // CPacketSocket::CheckCode
+            val headerCode = (m_nHeaderType + m_nHeaderCodeModifier) xor (m_nHeaderCodeRcvBase + m_nPacketRcvSeq)
+            if (buf.getByte(readerIdx) != headerCode.toByte()) {
+                println("HeaderCode 錯誤，斷開連接: ${ctx.channel().remoteAddress()}")
+                buf.clear()
                 ctx.close()
                 return
             }
+
+            val payloadLen = buf.getUnsignedShort(readerIdx + payloadLenIdx) xor 0xA569
+
+            val totalLen = headerLen + payloadLen + crcLen
+
+            if (buf.readableBytes() < totalLen) return
+
+            buf.skipBytes(headerLen) // 前面已經用get來取值了 跳過header
 
             // (Zero-Copy Slice, 因為要傳給 Handler 所以要retain )
             val payload = buf.readRetainedSlice(payloadLen)
             payload.simpleStreamDecrypt3(m_nPacketRcvSeq) // 解密
 
             // CRC驗證
-            val isCrcValid = when (buf.m_nCipherDegree) {
+            val isCrcValid = when (m_nCipherDegreeInit) {
                 1 -> buf.readInt() ==
-                        CRC32.UpdateCRC(dwCrcKey = m_nPacketRcvSeq, payload, Size = payload.writerIndex())
+                        CRC32.UpdateCRC(dwCrcKey = m_nPacketRcvSeq, payload)
 
-                2 -> buf.readByte() ==
-                        CRC8.UpdateCRC(dwCrcKey = m_nPacketRcvSeq, payload, Size = payload.writerIndex()).toByte()
+                2, 3 -> buf.readByte() ==
+                        CRC8.UpdateCRC(dwCrcKey = m_nPacketRcvSeq, payload).toByte()
 
                 else -> true
             }
 
             if (!isCrcValid) {
-                println("CRC不正確 關閉連接")
+                println("CRC 錯誤，斷開連接: ${ctx.channel().remoteAddress()}")
                 payload.release()
                 ctx.close()
                 return
             }
 
-            m_nPacketRcvSeq += m_nPacketRcvSeqDelta
-
             out += payload
+
+            m_nPacketRcvSeq += m_nPacketRcvSeqDelta
         }
     }
+}
+
+//class Encoder : MessageToMessageEncoder<PKT>() {
+class Encoder : MessageToByteEncoder<PKT>() {
+    var m_nCipherDegree = 0 // 給SendPacketBase用的
+    var m_nPacketSndSeq = 40
+    inline val headerLen
+        get() = when (m_nCipherDegree) {
+            3 -> 6
+            else -> 3
+        }
+
+    override fun encode(ctx: ChannelHandlerContext, pkt: PKT, out: ByteBuf) {
+        // 把writerIndex設在header結束的位置 來寫入payload
+        out.writerIndex(headerLen)
+
+        val opcode = OpcodeManager.getSendOp(pkt.javaClass) // m_nPacketType
+        val sendPacket = SendPacketBase(out, m_nCipherDegree).apply {
+            if (m_nCipherDegree == 3) {
+                Encode2(opcode)
+            } else {
+                Encode1(opcode)
+            }
+            pkt.encode(this)
+        }
+
+        val payloadLen = out.writerIndex() - headerLen
+
+        // 根據明文payload產生CRC
+        when (m_nCipherDegree) {
+            1 ->
+                out.writeInt(CRC32.UpdateCRC(dwCrcKey = m_nPacketSndSeq, out, headerLen, payloadLen))
+
+            2, 3 ->
+                out.writeByte(CRC8.UpdateCRC(dwCrcKey = m_nPacketSndSeq, out, headerLen, payloadLen))
+        }
+
+        val totalLen = out.writerIndex()
+
+        if (debugMode) {
+            pkt.logPacket(opcode)
+        }
+
+        // 把writerIndex設在0 來寫入header
+        out.writerIndex(0)
+
+        val headerCode = (m_nHeaderType + m_nHeaderCodeModifier) xor (m_nHeaderCodeSndBase + m_nPacketSndSeq)
+        out.writeByte(headerCode)
+
+        if (m_nCipherDegree in 1..3) {
+            // 寫入長度
+            if (m_nCipherDegree == 3) {
+                out.writeByte(0)
+                sendPacket.Encode4(payloadLen)
+            } else {
+                sendPacket.Encode2(payloadLen)
+            }
+            // 加密
+            out.simpleStreamEncrypt3(m_nPacketSndSeq, headerLen, payloadLen)
+        } else { // 握手
+            sendPacket.Encode2(payloadLen)
+            m_nCipherDegree = m_nCipherDegreeInit
+        }
+
+        // 將writerIndex還原
+        out.writerIndex(totalLen)
+
+        m_nPacketSndSeq += m_nPacketSndSeqDelta
+    }
+
+    /*    override fun encode(ctx: ChannelHandlerContext, pkt: PKT, out: MutableList<Any>) {
+            val opcode = OpcodeManager.getSendOp(pkt.javaClass) // m_nPacketType
+            val payload = ctx.alloc().ioBuffer()
+
+            SendPacketBase(payload, m_nCipherDegree).apply {
+                if (m_nCipherDegree == 3) {
+                    Encode2(opcode)
+                } else {
+                    Encode1(opcode)
+                }
+                pkt.encode(this)
+            }
+
+            val payloadLen = payload.readableBytes()
+
+            if (debugMode) {
+                pkt.logPacket(opcode)
+            }
+
+            val header = ctx.alloc().directBuffer(headerLen)
+
+            val headerCode = (m_nHeaderType + m_nHeaderCodeModifier) xor (m_nHeaderCodeSndBase + m_nPacketSndSeq)
+            header.writeByte(headerCode)
+
+            if (m_nCipherDegree in 1..3) {
+                // 寫入長度
+                if (m_nCipherDegree == 3) {
+                    header.writeByte(0)
+                    header.writeInt(payloadLen xor 0x96CA5395.toInt())
+                } else {
+                    header.writeShort(payloadLen xor 0xA569)
+                }
+                // 根據明文產生CRC
+                when (m_nCipherDegree) {
+                    1 -> payload.writeInt(CRC32.UpdateCRC(dwCrcKey = m_nPacketSndSeq, payload, Size = payloadLen))
+                    2, 3 -> payload.writeByte(CRC8.UpdateCRC(dwCrcKey = m_nPacketSndSeq, payload, Size = payloadLen))
+                }
+                // 加密
+                payload.simpleStreamEncrypt3(m_nPacketSndSeq, Size = payloadLen)
+            } else { // 握手
+                header.writeShort(payloadLen)
+                m_nCipherDegree = m_nCipherDegreeInit
+            }
+
+            out += header
+            out += payload
+
+            m_nPacketSndSeq += m_nPacketSndSeqDelta
+        }*/
+}
+
+fun PKT.logPacket(opcode: Int) {
+    println(
+        "[" + "${
+            javaClass.name.substringAfter('$').substringBefore('$')
+        }] " + "$opcode | 0x${opcode.toString(16).uppercase()} | 發送"
+    )
 }

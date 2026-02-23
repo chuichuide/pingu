@@ -35,14 +35,19 @@ object CRC32 {
         return crc
     }
 
-    fun UpdateCRC(dwCrcKey: Int, p: ByteBuf, Size: Int): Int {
+    fun UpdateCRC(
+        dwCrcKey: Int,
+        buf: ByteBuf,
+        offset: Int = 0,
+        Size: Int = buf.readableBytes()
+    ): Int {
         if (!bInit)
             GenCRCTable()
 
         var crc = dwCrcKey
 
         repeat(Size) { i ->
-            val index = (p.getUnsignedByte(i).toInt() xor (crc ushr 24)) and 0xFF
+            val index = (buf.getUnsignedByte(offset + i).toInt() xor (crc ushr 24)) and 0xFF
             crc = crc_table[index] xor (crc shl 8)
         }
 

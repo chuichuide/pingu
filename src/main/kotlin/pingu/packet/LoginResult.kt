@@ -3,7 +3,8 @@ package pingu.packet
 import pingu.netty.PKT
 import pingu.server.User
 
-// client = CLoginStage::OnLoginResult | TW_5 = 474F70
+// server = CLoginPool::OnCenterResAddNewUser
+// client = CLoginStage::OnLoginResult | TW_5 = 474F70 | JP_17 = 46EBCA
 fun LoginResult(users: List<User>) = PKT {
     Encode1() // Res
 
@@ -71,7 +72,7 @@ fun LoginResult_JP(users: List<User>) = PKT {
         Encode4(user.id)
         EncodeStr(user.name)
         Encode1()
-        EncodeStr()
+        EncodeStr(user.name) // NexonID
         Encode4(user.level)
     }
     Encode1()

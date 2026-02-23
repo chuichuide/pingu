@@ -1,17 +1,17 @@
 package pingu.netty
 
 import io.netty.buffer.ByteBuf
-import jdk.internal.org.jline.keymap.KeyMap.key
-import jdk.internal.org.jline.utils.Colors.s
+import io.netty.util.ReferenceCounted
 import pingu.ACP
 import pingu.debugMode
+import pingu.showDecValue
 
 fun interface PKTHandler {
-    fun ReceivedPacketBase.handle(c: Client)
+    fun ReceivedPacketBase.handle(c: ClientSocket)
 }
 
 fun interface PKT {
-//    fun SendPacketBase.encode() // 如果用這個每個Packet函數要inline才看的到函數名字 不然會只有object+lambda名字
+    //    fun SendPacketBase.encode() // 如果用這個每個Packet函數要inline才看的到函數名字 不然會只有object+lambda名字
     fun encode(out: SendPacketBase)
 }
 
@@ -33,9 +33,9 @@ fun ReceivedPacketBase.DecodeEncryptedStr(key: Int) =
     DecodeEncryptedStrAt(key)
 
 private fun ReceivedPacketBase.Decode1At(): Int {
-    if (m_nCipherDegree in 1..2) {
+    if (m_nCipherDegreeInit in 1..3) {
         val value = BufferManipulator.Decrypt1(this)
-        if (debugMode)
+        if (debugMode &&showDecValue)
             println("decrypt value = $value")
         return value
     } else {
@@ -44,9 +44,9 @@ private fun ReceivedPacketBase.Decode1At(): Int {
 }
 
 private fun ReceivedPacketBase.Decode2At(): Int {
-    if (m_nCipherDegree in 1..2) {
+    if (m_nCipherDegreeInit in 1..3) {
         val value = BufferManipulator.Decrypt2(this)
-        if (debugMode)
+        if (debugMode && showDecValue)
             println("decrypt value = $value")
         return value
     } else {
@@ -55,9 +55,9 @@ private fun ReceivedPacketBase.Decode2At(): Int {
 }
 
 private fun ReceivedPacketBase.Decode4At(): Int {
-    if (m_nCipherDegree in 1..2) {
+    if (m_nCipherDegreeInit in 1..3) {
         val value = BufferManipulator.Decrypt4(this)
-        if (debugMode)
+        if (debugMode && showDecValue)
             println("decrypt value = $value")
         return value
     } else {
@@ -66,29 +66,28 @@ private fun ReceivedPacketBase.Decode4At(): Int {
 }
 
 private fun ReceivedPacketBase.DecodeStrAt(): String {
-    val length = Decode2At()
-    return readCharSequence(length, ACP).toString()
+    val length = if (m_nCipherDegreeInit == 3) Decode4At() else Decode2At()
+
+    return readString(length, ACP)
 }
 
 private fun ReceivedPacketBase.DecodeEncryptedStrAt(key: Int): String {
-    val length = Decode2At()
+    val length = if (m_nCipherDegreeInit == 3) Decode4At() else Decode2At()
     simpleStreamDecrypt3(key, readerIndex(), length)
-    val decryptString = readCharSequence(length, ACP).toString()
-    if (debugMode)
+
+    val decryptString = readString(length, ACP)
+
+    if (debugMode && showDecValue)
         println("decryptString: $decryptString")
     return decryptString
 }
 
-class SendPacketBase {
-    private lateinit var buf: ByteBuf
-    private var m_nCipherDegree = 0
+class SendPacketBase(
+    private val buf: ByteBuf,
+    private val m_nCipherDegree: Int
+) : ReferenceCounted by buf {
 
-    fun reset(buf: ByteBuf, m_nCipherDegree: Int) {
-        this.buf = buf
-        this.m_nCipherDegree = m_nCipherDegree
-    }
-
-    fun Encode1(n: Int = 0) =
+    fun Encode1(n: Number = 0) =
         Encode1At(n)
 
     fun Encode1Bool(b: Boolean = false) =
@@ -114,8 +113,8 @@ class SendPacketBase {
         buf.writeBytes(s.toBA())
     }
 
-    private fun Encode1At(n: Int) {
-        if (this.m_nCipherDegree in 1..2) {
+    private fun Encode1At(n: Number) {
+        if (this.m_nCipherDegree in 1..3) {
             BufferManipulator.Encrypt1(buf, n)
         } else {
             BufferManipulator.Encode1(buf, n)
@@ -123,7 +122,7 @@ class SendPacketBase {
     }
 
     private fun Encode2At(n: Int) {
-        if (this.m_nCipherDegree in 1..2) {
+        if (this.m_nCipherDegree in 1..3) {
             BufferManipulator.Encrypt2(buf, n)
         } else {
             BufferManipulator.Encode2(buf, n)
@@ -131,7 +130,7 @@ class SendPacketBase {
     }
 
     private fun Encode4At(n: Int) {
-        if (this.m_nCipherDegree in 1..2) {
+        if (this.m_nCipherDegree in 1..3) {
             BufferManipulator.Encrypt4(buf, n)
         } else {
             BufferManipulator.Encode4(buf, n)
@@ -140,19 +139,19 @@ class SendPacketBase {
 }
 
 private object BufferManipulator {
-    fun Decode1(buf: ByteBuf) = buf.readUnsignedByte().toInt()
-    fun Decode2(buf: ByteBuf) = buf.readUnsignedShort()
-    fun Decode4(buf: ByteBuf) = buf.readInt()
+    fun Decode1(buf: ByteBuf): Int = buf.readUnsignedByte().toInt()
+    fun Decode2(buf: ByteBuf): Int = buf.readUnsignedShort()
+    fun Decode4(buf: ByteBuf): Int = buf.readInt()
 
-    fun Decrypt1(buf: ByteBuf) = buf.readUnsignedByte().toInt() xor 0x5A
-    fun Decrypt2(buf: ByteBuf) = buf.readUnsignedShort() xor 0xA569
-    fun Decrypt4(buf: ByteBuf) = buf.readInt() xor 0x96CA5395.toInt()
+    fun Decrypt1(buf: ByteBuf): Int = buf.readUnsignedByte().toInt() xor 0x5A
+    fun Decrypt2(buf: ByteBuf): Int = buf.readUnsignedShort() xor 0xA569
+    fun Decrypt4(buf: ByteBuf): Int = buf.readInt() xor 0x96CA5395.toInt()
 
-    fun Encode1(buf: ByteBuf, n: Int) = buf.writeByte(n)
+    fun Encode1(buf: ByteBuf, n: Number) = buf.writeByte(n.toInt())
     fun Encode2(buf: ByteBuf, n: Int) = buf.writeShort(n)
     fun Encode4(buf: ByteBuf, n: Int) = buf.writeInt(n)
 
-    fun Encrypt1(buf: ByteBuf, n: Int) = buf.writeByte(n xor 0x5A)
+    fun Encrypt1(buf: ByteBuf, n: Number) = buf.writeByte(n.toInt() xor 0x5A)
     fun Encrypt2(buf: ByteBuf, n: Int) = buf.writeShort(n xor 0xA569)
     fun Encrypt4(buf: ByteBuf, n: Int) = buf.writeInt(n xor 0x96CA5395.toInt())
 }

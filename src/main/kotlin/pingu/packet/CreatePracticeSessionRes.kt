@@ -7,5 +7,5 @@ import pingu.netty.PKT
 fun CreatePracticeSessionResult() = PKT {
     Encode1()
     Encode2()
-    Encode4(1)
+    Encode4(2)
 }

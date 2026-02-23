@@ -10,6 +10,6 @@ fun ResConnectToSvr(res: Int, ChannelID: Int) = PKT {
         Encode1(ChannelID)
         Encode4()
         Encode4(0x7F000001)
-        Encode2(4848)
+        Encode2(if (ChannelID != 11) 4848 else 4849)
     }
 }

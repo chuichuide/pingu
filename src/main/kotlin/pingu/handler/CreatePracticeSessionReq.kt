@@ -2,20 +2,39 @@ package pingu.handler
 
 import pingu.netty.Decode1
 import pingu.netty.PKTHandler
-import pingu.netty.send
-import pingu.packet.*
+import pingu.packet.CreatePracticeSessionResult
+import pingu.packet.room.SetPlayer
+import pingu.packet.room.SetSlotState
+import pingu.server.CheifMask
+import pingu.server.Room
+import pingu.server.bomber
+import pingu.server.color
+import pingu.server.state
 
 // 開啟練習模式房間
 // server = CGameSessionTable::CreateSessionPractice
 val CreatePracticeSessionReq = PKTHandler { c ->
     val userCount = Decode1 // 1
-    if (userCount > 0) {
+    repeat(userCount) { i ->
         Decode1 // 10
+
+        Room.slots[i].apply {
+            user = c.users[i]
+
+            state = CheifMask
+            bomber = 5
+            color = i
+        }
     }
 
-    c.send(
-        CreatePracticeSessionResult(),
-        SetPlayer(0),
-        SetSlotState(1, true)
-    )
+    repeat(Room.slots.size - userCount) { i ->
+        Room.slots[userCount + i].apply {
+            bomber = 5
+            color = 7
+            isAI = true
+        }
+    }
+
+    c send CreatePracticeSessionResult()
+    Room.encodeSlots(c)
 }

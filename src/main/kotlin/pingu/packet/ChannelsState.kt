@@ -3,7 +3,7 @@ package pingu.packet
 import pingu.isTW
 import pingu.netty.PKT
 
-// server =  CChannelCache::MakeStatePacket
+// server = CChannelCache::MakeStatePacket
 fun ChannelsState() = PKT {
     val channelSize = if (isTW) 5 else 1
     Encode2(channelSize)

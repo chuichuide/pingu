@@ -2,9 +2,9 @@ package pingu.netty
 
 import io.netty.buffer.ByteBuf
 
-fun ByteBuf.simpleStreamEncrypt3(key: Int, offset: Int = 0, size: Int = readableBytes()) {
-    val blockCount = size shr 2
-    val remaining = size and 3
+fun ByteBuf.simpleStreamEncrypt3(key: Int, offset: Int = 0, Size: Int = readableBytes()) {
+    val blockCount = Size shr 2
+    val remaining = Size and 3
 
     var modifiedKey = key xor 0x53351D9C
 
@@ -39,9 +39,9 @@ fun ByteBuf.simpleStreamEncrypt3(key: Int, offset: Int = 0, size: Int = readable
     }
 }
 
-fun ByteBuf.simpleStreamDecrypt3(key: Int, offset: Int = 0, size: Int = readableBytes()) {
-    val blockCount = size shr 2
-    val remaining = size and 3
+fun ByteBuf.simpleStreamDecrypt3(key: Int, offset: Int = 0, Size: Int = readableBytes()) {
+    val blockCount = Size shr 2
+    val remaining = Size and 3
 
     var modifiedKey = key xor 0x53351D9C
 
