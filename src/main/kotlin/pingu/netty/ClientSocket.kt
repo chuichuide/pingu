@@ -52,7 +52,7 @@ class ClientSocket : SimpleChannelInboundHandler<ByteBuf>() {
         val hexOp = "0x${opcode.toString(16).uppercase()}"
         val status = if (handler != null) "接收" else "找不到 Handler"
 
-        println("[${opName ?: "UNKNOWN"}] $opcode | $hexOp | $status | ${ctx.channel().remoteAddress()}")
+        println("[${opName ?: "UNKNOWN"}] $opcode | $hexOp | $status | ${ch.remoteAddress()}")
 
         val remaining = pkt.readableBytes()
         if (remaining in 1..99) {

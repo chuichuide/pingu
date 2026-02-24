@@ -9,5 +9,5 @@ val StartGameReq = PKTHandler { c ->
     val res = 0
     c send StartGameResult(res)
 
-    Room.startGane()
+    Room.startGame()
 }

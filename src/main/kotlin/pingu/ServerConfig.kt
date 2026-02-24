@@ -29,7 +29,6 @@ val isTH = locale == Region.TH
 val isVN = locale == Region.VN
 val isNA = locale == Region.NA
 
-//val debugMode = true
 val debugMode = true
 val showDecValue = false
 

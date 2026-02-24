@@ -1,17 +1,16 @@
 package pingu.packet.room
 
-import pingu.netty.Decode1
 import pingu.netty.PKT
-import pingu.netty.ReceivedPacketBase
+import pingu.server.AirplaneItem
 
-fun ReceivedPacketBase.Airplane(count: Int, scheduledTime: Int) = PKT {
+fun Airplane(scheduledTime: Int, items: List<AirplaneItem>) = PKT {
     Encode4(scheduledTime)
-    Encode1(count)
+    Encode1(items.size)
 
-    repeat(count) {
-        Encode1(Decode1)
-        Encode1(Decode1)
-        Encode1(Decode1)
-        Encode1(Decode1)
+    items.forEach { item ->
+        Encode1(item.v1)
+        Encode1(item.v2)
+        Encode1(item.v3)
+        Encode1(item.v4)
     }
 }

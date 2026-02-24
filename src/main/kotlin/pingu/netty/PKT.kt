@@ -29,13 +29,14 @@ val ReceivedPacketBase.Decode4
     get() = Decode4At()
 val ReceivedPacketBase.DecodeStr
     get() = DecodeStrAt()
+
 fun ReceivedPacketBase.DecodeEncryptedStr(key: Int) =
     DecodeEncryptedStrAt(key)
 
 private fun ReceivedPacketBase.Decode1At(): Int {
     if (m_nCipherDegreeInit in 1..3) {
         val value = BufferManipulator.Decrypt1(this)
-        if (debugMode &&showDecValue)
+        if (debugMode && showDecValue)
             println("decrypt value = $value")
         return value
     } else {
@@ -66,13 +67,19 @@ private fun ReceivedPacketBase.Decode4At(): Int {
 }
 
 private fun ReceivedPacketBase.DecodeStrAt(): String {
-    val length = if (m_nCipherDegreeInit == 3) Decode4At() else Decode2At()
-
+    val length = when (m_nCipherDegreeInit) {
+        3 -> Decode4At()
+        else -> Decode2At()
+    }
     return readString(length, ACP)
 }
 
 private fun ReceivedPacketBase.DecodeEncryptedStrAt(key: Int): String {
-    val length = if (m_nCipherDegreeInit == 3) Decode4At() else Decode2At()
+    val length = when (m_nCipherDegreeInit) {
+        3 -> Decode4At()
+        else -> Decode2At()
+    }
+
     simpleStreamDecrypt3(key, readerIndex(), length)
 
     val decryptString = readString(length, ACP)
@@ -83,7 +90,7 @@ private fun ReceivedPacketBase.DecodeEncryptedStrAt(key: Int): String {
 }
 
 class SendPacketBase(
-    private val buf: ByteBuf,
+    val buf: ByteBuf,
     private val m_nCipherDegree: Int
 ) : ReferenceCounted by buf {
 

@@ -2,11 +2,14 @@ package pingu.server
 
 import io.netty.channel.EventLoop
 import io.netty.util.concurrent.ScheduledFuture
+import pingu.isJP
 import pingu.netty.ClientSocket
 import pingu.netty.NettyServer.workerGroup
 import pingu.netty.PKT
 import pingu.packet.room.*
+import java.util.GregorianCalendar.BC
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 // 之後改用class
@@ -16,7 +19,7 @@ object Room {
     val slots = Array(8) { Slot() }
     var mapId = 89
 
-    //    val nextBombId = AtomicInteger(0)
+//    val nextBombId = AtomicInteger(0)
     var nextBombId = 0
     val bombs = mutableListOf<Bomb>()
     var lastAirplaneTime = 0L
@@ -31,9 +34,13 @@ object Room {
         }
     }
 
-    fun startGane() {
+    fun startGame() {
         // 每 500ms 一次
         tickFuture = executor.scheduleAtFixedRate(::onTick, 0, 500, TimeUnit.MILLISECONDS)
+
+        // temp fix jp crash
+        if (isJP)
+            mapId = 118
 
         val spawnPositions = (0..7).shuffled()
         val random = Random.nextInt(9999)
@@ -54,11 +61,9 @@ object Room {
 
         // 移除並觸發爆炸
         bombs.removeAll(exploded)
-        exploded.forEach {
-            BC(
-                SetBombState(it.id)
-            )
-        }
+        BC(
+            SetBombState(exploded)
+        )
     }
 
     fun BC(vararg packets: PKT) {

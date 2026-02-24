@@ -27,7 +27,7 @@ val CreatePracticeSessionReq = PKTHandler { c ->
         }
     }
 
-    repeat(Room.slots.size - userCount) { i ->
+    repeat(3/*Room.slots.size*/ - userCount) { i ->
         Room.slots[userCount + i].apply {
             bomber = 5
             color = 7
