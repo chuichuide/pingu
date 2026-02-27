@@ -3,7 +3,6 @@ package pingu.handler.room
 import pingu.netty.Decode1
 import pingu.netty.Decode2
 import pingu.netty.PKTHandler
-
 import pingu.packet.room.BombKickThrow
 import pingu.server.Room
 
@@ -14,7 +13,11 @@ val BombKickThrowReq = PKTHandler { c ->
     val fromPos =  Decode1
 
     val targetPos = Decode1
-    val speed = Decode2
+    val moveDuration = Decode2
 
-    Room BC BombKickThrow(slotId, bombId, targetPos)
+    Room.getBomb(bombId)?.apply {
+        isMoving = true
+        expireAt = System.currentTimeMillis() + moveDuration
+        Room BC BombKickThrow(slotId, bombId, targetPos)
+    }
 }

@@ -38,4 +38,10 @@ SetBomberEvent: 159
 SetEffect: 160
 Airplane: 171
 AirplaneItemProb: 173
+FxStockInit: 200
+UserItemList: 202
+StringTableInit: 205
+DigiQAuthorizationResult: 209
+PackageMapInit: 213
 Unk210: 210
+CartList: 214

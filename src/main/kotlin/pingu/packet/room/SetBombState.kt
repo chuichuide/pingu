@@ -4,10 +4,10 @@ import pingu.netty.PKT
 import pingu.server.Bomb
 import pingu.server.Room.bombs
 
-fun SetBombState(bombs: List<Bomb>, state: Int = 0) = PKT {
+fun SetBombState(bombs: List<Bomb>) = PKT {
     Encode1(bombs.size)
     bombs.forEach { bomb ->
         Encode2(bomb.id)
-        Encode1(state) // 0 = 爆炸
+        Encode1(bomb.state) // 0 = 爆炸 1 = MovingStop?
     }
 }

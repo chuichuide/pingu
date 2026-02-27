@@ -7,36 +7,30 @@ import pingu.netty.ClientSocket
 import pingu.netty.NettyServer.workerGroup
 import pingu.netty.PKT
 import pingu.packet.room.*
-import java.util.GregorianCalendar.BC
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 // 之後改用class
 object Room {
-    val executor: EventLoop = workerGroup.next()
+    private val executor: EventLoop = workerGroup.next()
     private var tickFuture: ScheduledFuture<*>? = null
+    private var nextBombId = 0
     val slots = Array(8) { Slot() }
     var mapId = 89
-
-//    val nextBombId = AtomicInteger(0)
-    var nextBombId = 0
     val bombs = mutableListOf<Bomb>()
     var lastAirplaneTime = 0L
 
-    fun addBomb(slotId: Int, pos: Int, bombAttr: Int, bSpecial: Boolean, unk: Int) {
-        executor.execute {
-            val bombId = nextBombId++
-            bombs += Bomb(bombId, slotId, pos, bombAttr, bSpecial)
-            BC(
-                BombIgnite(slotId, pos, bombAttr, bombId, unk)
-            )
-        }
-    }
+    val activeSlotCount: Int
+        get() = slots.count { it.user != null || it.isAI }
+
+    val uniqueClients: Sequence<ClientSocket>
+        get() = slots.asSequence()
+            .mapNotNull { it.user?.c } // 取得所有slot中有玩家的 ClientSocket
+            .distinctBy { it.ch.id() } // 過濾掉 2P 的重複連線 對2P只會發一次
 
     fun startGame() {
-        // 每 500ms 一次
-        tickFuture = executor.scheduleAtFixedRate(::onTick, 0, 500, TimeUnit.MILLISECONDS)
+        // 每 200ms 一次
+        tickFuture = executor.scheduleAtFixedRate(::onTick, 0, 200, TimeUnit.MILLISECONDS)
 
         // temp fix jp crash
         if (isJP)
@@ -52,39 +46,47 @@ object Room {
         )
     }
 
+    // CGameSession::Update
     private fun onTick() {
         val now = System.currentTimeMillis()
+        val stateChanged = mutableListOf<Bomb>()
 
-        // 找出所有該爆的炸彈
-        val exploded = bombs.filter { it.expireAt <= now }
-        if (exploded.isEmpty()) return
+        bombs.removeIf { bomb ->
+            if (bomb.updateState(now)) {
+                stateChanged.add(bomb)
+            }
+            bomb.shouldRemove()
+        }
 
-        // 移除並觸發爆炸
-        bombs.removeAll(exploded)
-        BC(
-            SetBombState(exploded)
-        )
+        if (stateChanged.isNotEmpty()) {
+            BC(SetBombState(stateChanged))
+        }
+    }
+
+    fun addBomb(slotId: Int, pos: Int, bombAttr: Int, isSpecial: Boolean, unk: Int) {
+        executor.execute {
+            val bombId = nextBombId++
+            bombs += Bomb(bombId, slotId, pos, bombAttr, isSpecial)
+            BC(
+                BombIgnite(slotId, pos, bombAttr, bombId, unk)
+            )
+        }
+    }
+
+    fun getBomb(bombId: Int): Bomb? {
+        return bombs.find { it.id == bombId }
     }
 
     fun BC(vararg packets: PKT) {
-        executor.execute {
-            slots.asSequence()
-                .mapNotNull { it.user?.c } // 取得所有slot中有玩家的 ClientSocket
-                .distinctBy { it.ch.id() } // 過濾掉 2P 的重複連線 對2P只會發一次
-                .forEach { c ->
-                    packets.forEach {
-                        c.send(it)
-                    }
-                }
+        uniqueClients.forEach { client ->
+            packets.forEach { client.ctx.write(it) }
+            client.ctx.flush()
         }
     }
 
     infix fun BC(packet: PKT) {
-        executor.execute {
-            slots.asSequence()
-                .mapNotNull { it.user?.c } // 取得所有slot中有玩家的 ClientSocket
-                .distinctBy { it.ch.id() } // 過濾掉 2P 的重複連線 對2P只會發一次
-                .forEach { it.send(packet) }
+        uniqueClients.forEach { client ->
+            client.ctx.writeAndFlush(packet)
         }
     }
 
@@ -103,8 +105,9 @@ object Room {
     }
 
     fun reset() {
-        nextBombId = 0
+        tickFuture?.cancel(false)
         bombs.clear()
+        nextBombId = 0
         lastAirplaneTime = 0L
     }
 }

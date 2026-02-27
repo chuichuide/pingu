@@ -16,7 +16,7 @@ val BombIgniteReq = PKTHandler { c ->
     val y = pos and 0x0F
 
     val power = bombAttr and 0x0F
-    val bSpecial = ((bombAttr shr 6) and 1) == 1
+    val isSpecial = ((bombAttr shr 6) and 1) == 1
 
-    Room.addBomb(slotId, pos, bombAttr, bSpecial, unk)
+    Room.addBomb(slotId, pos, bombAttr, isSpecial, unk)
 }

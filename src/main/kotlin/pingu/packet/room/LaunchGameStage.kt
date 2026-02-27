@@ -1,6 +1,5 @@
 package pingu.packet.room
 
-import jdk.javadoc.internal.doclets.formats.html.markup.HtmlStyles
 import pingu.netty.PKT
 import pingu.server.Room
 import pingu.server.bomber
@@ -12,13 +11,11 @@ import pingu.tickCount
 fun LaunchGameStage(spawnPositions: List<Int>) = PKT {
     Encode4(tickCount)
 
-    Encode2(Room.mapId) // mapId
-    // mapId 台版 87 = 賽車場05 | 89 = 賽車場07 | 156 = 海14 | 188 = 村10
-    // mapId 日版 118 = 海14
+    Encode2(Room.mapId)
+    // 台版 87 = 賽車場05 | 89 = 賽車場07 | 156 = 海14 | 188 = 村10
+    // 日版 118 = 海14
 
-    val userSize = Room.slots.count { it.user != null || it.isAI }
-
-    Encode1(userSize)
+    Encode1(Room.activeSlotCount)
     Room.slots.forEachIndexed { index, slot ->
         if (slot.user != null || slot.isAI) {
             Encode1(index) // slotId

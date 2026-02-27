@@ -109,7 +109,7 @@ class Encoder : MessageToByteEncoder<PKT>() {
 
     override fun encode(ctx: ChannelHandlerContext, pkt: PKT, out: ByteBuf) {
         val opcode = OpcodeManager.getSendOp(pkt.javaClass) // m_nPacketType
-       SendPacketBase(out, m_nCipherDegree).apply { // 操作buf = 操作out
+        SendPacketBase(out, m_nCipherDegree).apply { // 操作buf = 操作out
             // 把writerIndex設在header結束的位置 來寫入payload
             buf.writerIndex(headerLen)
 
