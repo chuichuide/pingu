@@ -31,6 +31,7 @@ CreatePracticeSessionReq: 86
 SetPlayerReadyReq: 96
 SelectMapReq: 97
 SelectColorReq: 98
+SelectBomberReq: 99
 OpenCloseSlotReq: 100
 SetGameTypeNormalReq: 102
 SetGameTypeModReq: 103

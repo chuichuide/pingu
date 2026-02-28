@@ -25,6 +25,7 @@ CreatePracticeSessionResult: 89
 SetPlayer: 105
 SetSlotState: 107
 SelectColor: 108
+SelectBomber: 109
 SelectMap: 112
 StartGameResult: 115
 LaunchGameStage: 116
