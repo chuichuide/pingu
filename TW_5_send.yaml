@@ -26,6 +26,7 @@ SetPlayer: 105
 SetSlotState: 107
 SelectColor: 108
 SelectBomber: 109
+DoOpenCloseSlot: 110
 SelectMap: 112
 StartGameResult: 115
 LaunchGameStage: 116
