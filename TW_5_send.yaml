@@ -44,6 +44,7 @@ Airplane: 171
 AirplaneItemProb: 173
 FxStockInit: 200
 UserItemList: 202
+RequestRemainCashTw: 203
 StringTableInit: 205
 DigiQAuthorizationResult: 209
 PackageMapInit: 213
